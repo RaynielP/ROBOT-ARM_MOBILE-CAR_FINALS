@@ -1,419 +1,128 @@
-#include <Arduino.h>
-#include <WiFi.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
+//IRremote
+#include <IRremote.h> 
+const int IRpin = 7;
+IRrecv IR(IRpin);
 
-#include <ESP32Servo.h>
-#include <iostream>
-#include <sstream>
+ // Motor 1
+const int dir1 = 2;
+const int dir2 = 4;
+const int speed1 = 3;
 
-struct ServoPins
-{
-  Servo servo;
-  int servoPin;
-  String servoName;
-  int initialPosition;  
-};
-std::vector<ServoPins> servoPins = 
-{
-  { Servo(), 18, "Base", 0},
-  { Servo(), 19, "Shoulder", 0},
-  { Servo(), 22 , "Elbow", 0},
-  { Servo(), 23 , "Gripper", 0},
-};
+// Motor 2 
+const int dir3 = 8;
+const int dir4 = 12; 
+const int speed2 = 9;
 
-struct RecordedStep
-{
-  int servoIndex;
-  int value;
-  int delayInStep;
-};
-std::vector<RecordedStep> recordedSteps;
+//Motor Speed
+int MOTSpeed1 = 255;
+int MOTSpeed2 = 0;
+int MOTSpeed3 = 255;
 
-bool recordSteps = false;
-bool playRecordedSteps = false;
+// Ultrasonic Sensor
+const int TRIG = 6;
+const int ECHO = 5;
+long Duration; 
+int Distance; 
+const int DStop = .001; 
+int t = 500; 
+ 
+void setup() {
 
-unsigned long previousTimeInMilli = millis();
+IR.enableIRIn();
 
-const char* ssid     = "RobotArm";
-const char* password = "12345678";
 
-AsyncWebServer server(80);
-AsyncWebSocket wsRobotArmInput("/RobotArmInput");
+pinMode(dir1,OUTPUT); 
+pinMode(dir2,OUTPUT); 
+pinMode(speed1,OUTPUT); 
 
-const char* htmlHomePage PROGMEM = R"HTMLHOMEPAGE(
-<!DOCTYPE html>
-<html>
-  <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <style>
+pinMode(dir3,OUTPUT); 
+pinMode(dir4,OUTPUT); 
+pinMode(speed2,OUTPUT); 
 
-    input[type=button]
-    {
-      background-color:red;color:white;border-radius:30px;width:100%;height:40px;font-size:20px;text-align:center;
-    }
-        
-    .noselect {
-      -webkit-touch-callout: none; /* iOS Safari */
-        -webkit-user-select: none; /* Safari */
-         -khtml-user-select: none; /* Konqueror HTML */
-           -moz-user-select: none; /* Firefox */
-            -ms-user-select: none; /* Internet Explorer/Edge */
-                user-select: none; /* Non-prefixed version, currently
-                                      supported by Chrome and Opera */
-    }
+pinMode(TRIG, OUTPUT);
+pinMode(ECHO, INPUT);
+Serial.begin(9600);
+}
 
-    .slidecontainer {
-      width: 100%;
-    }
-
-    .slider {
-      -webkit-appearance: none;
-      width: 100%;
-      height: 20px;
-      border-radius: 5px;
-      background: #d3d3d3;
-      outline: none;
-      opacity: 0.7;
-      -webkit-transition: .2s;
-      transition: opacity .2s;
-    }
-
-    .slider:hover {
-      opacity: 1;
-    }
+void loop() {
+   
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
   
-    .slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: red;
-      cursor: pointer;
-    }
+  digitalWrite(TRIG, HIGH); 
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
 
-    .slider::-moz-range-thumb {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: red;
-      cursor: pointer;
-    }
+ 
+  Duration = pulseIn(ECHO, HIGH);
+  Distance = (Duration * 0.0343 / 2);
 
-    </style>
-  
-  </head>
-  <body class="noselect" align="center" style="background-color:white">
-     
-    <h1 style="color: teal;text-align:center;">Hash Include Electronics</h1>
-    <h2 style="color: teal;text-align:center;">Robot Arm Control</h2>
+  if (Distance <= DStop) {
+    // Motor Stop
+    digitalWrite(dir1, LOW);
+    digitalWrite(dir2, LOW);
+    digitalWrite(dir3, LOW); 
+    digitalWrite(dir4, LOW);
+    analogWrite(speed1, MOTSpeed2); // Set speed to MOTSpeed2 (0) to stop
+    analogWrite(speed2, MOTSpeed2);
+  }
+  else{
+    while (IR.decode()) {
+    if (IR.decodedIRData.decodedRawData == 0xE718FF00) {
+      // ARROW UP - FORWARD
+      digitalWrite(dir1, HIGH);
+      digitalWrite(dir2, LOW);
+      digitalWrite(dir3, HIGH);
+      digitalWrite(dir4, LOW);
+      analogWrite(speed1, MOTSpeed1);
+      analogWrite(speed2, MOTSpeed1);
+
+    }
+    else if (IR.decodedIRData.decodedRawData == 0xAD52FF00) {
+      // ARROW DOWN - REVERSE
+      digitalWrite(dir1, LOW);
+      digitalWrite(dir2, HIGH);
+      digitalWrite(dir3, LOW);
+      digitalWrite(dir4, HIGH);
+      analogWrite(speed1, MOTSpeed1);
+      analogWrite(speed2, MOTSpeed1);
+
+    }
+    else if (IR.decodedIRData.decodedRawData == 0xE31CFF00) {
+      // OK BUTTON - STOP
+      digitalWrite(dir1, LOW);
+      digitalWrite(dir2, LOW);
+      digitalWrite(dir3, LOW);
+      digitalWrite(dir4, LOW);
+      analogWrite(speed1, MOTSpeed2); // Set speed to MOTSpeed2 (0) to stop
+      analogWrite(speed2, MOTSpeed2);
+
+    }
+    else if (IR.decodedIRData.decodedRawData == 0xF708FF00) {
+      // LEFT
+      digitalWrite(dir1, HIGH);
+      digitalWrite(dir2, LOW);
+      digitalWrite(dir3, LOW);
+      digitalWrite(dir4, HIGH);
+      analogWrite(speed1, MOTSpeed3);
+      analogWrite(speed2, MOTSpeed3);
+
+    }
+    else if (IR.decodedIRData.decodedRawData == 0xA55AFF00) {
+      // RIGHT
+      digitalWrite(dir1, LOW);
+      digitalWrite(dir2, HIGH);
+      digitalWrite(dir3, HIGH);
+      digitalWrite(dir4, LOW);
+      analogWrite(speed1, MOTSpeed3);
+      analogWrite(speed2, MOTSpeed3);
+      
+    }
+    IR.resume();
+    delay(100);
     
-    <table id="mainTable" style="width:400px;margin:auto;table-layout:fixed" CELLSPACING=10>
-      <tr/><tr/>
-      <tr/><tr/>
-      <tr>
-        <td style="text-align:left;font-size:25px"><b>Gripper:</b></td>
-        <td colspan=2>
-         <div class="slidecontainer">
-            <input type="range" min="0" max="180" value="90" class="slider" id="Gripper" oninput='sendButtonInput("Gripper",value)'>
-          </div>
-        </td>
-      </tr> 
-      <tr/><tr/>
-      <tr>
-        <td style="text-align:left;font-size:25px"><b>Elbow:</b></td>
-        <td colspan=2>
-         <div class="slidecontainer">
-            <input type="range" min="0" max="180" value="90" class="slider" id="Elbow" oninput='sendButtonInput("Elbow",value)'>
-          </div>
-        </td>
-      </tr> 
-      <tr/><tr/>      
-      <tr>
-        <td style="text-align:left;font-size:25px"><b>Shoulder:</b></td>
-        <td colspan=2>
-         <div class="slidecontainer">
-            <input type="range" min="0" max="180" value="90" class="slider" id="Shoulder" oninput='sendButtonInput("Shoulder",value)'>
-          </div>
-        </td>
-      </tr>  
-      <tr/><tr/>      
-      <tr>
-        <td style="text-align:left;font-size:25px"><b>Base:</b></td>
-        <td colspan=2>
-         <div class="slidecontainer">
-            <input type="range" min="0" max="180" value="90" class="slider" id="Base" oninput='sendButtonInput("Base",value)'>
-          </div>
-        </td>
-      </tr> 
-      <tr/><tr/> 
-      <tr>
-        <td style="text-align:left;font-size:25px"><b>Record:</b></td>
-        <td><input type="button" id="Record" value="OFF" ontouchend='onclickButton(this)'></td>
-        <td></td>
-      </tr>
-      <tr/><tr/> 
-      <tr>
-        <td style="text-align:left;font-size:25px"><b>Play:</b></td>
-        <td><input type="button" id="Play" value="OFF" ontouchend='onclickButton(this)'></td>
-        <td></td>
-      </tr>      
-    </table>
+  } 
   
-    <script>
-      var webSocketRobotArmInputUrl = "ws:\/\/" + window.location.hostname + "/RobotArmInput";      
-      var websocketRobotArmInput;
-      
-      function initRobotArmInputWebSocket() 
-      {
-        websocketRobotArmInput = new WebSocket(webSocketRobotArmInputUrl);
-        websocketRobotArmInput.onopen    = function(event){};
-        websocketRobotArmInput.onclose   = function(event){setTimeout(initRobotArmInputWebSocket, 2000);};
-        websocketRobotArmInput.onmessage    = function(event)
-        {
-          var keyValue = event.data.split(",");
-          var button = document.getElementById(keyValue[0]);
-          button.value = keyValue[1];
-          if (button.id == "Record" || button.id == "Play")
-          {
-            button.style.backgroundColor = (button.value == "ON" ? "green" : "red");  
-            enableDisableButtonsSliders(button);
-          }
-        };
-      }
-      
-      function sendButtonInput(key, value) 
-      {
-        var data = key + "," + value;
-        websocketRobotArmInput.send(data);
-      }
-      
-      function onclickButton(button) 
-      {
-        button.value = (button.value == "ON") ? "OFF" : "ON" ;        
-        button.style.backgroundColor = (button.value == "ON" ? "green" : "red");          
-        var value = (button.value == "ON") ? 1 : 0 ;
-        sendButtonInput(button.id, value);
-        enableDisableButtonsSliders(button);
-      }
-      
-      function enableDisableButtonsSliders(button)
-      {
-        if(button.id == "Play")
-        {
-          var disabled = "auto";
-          if (button.value == "ON")
-          {
-            disabled = "none";            
-          }
-          document.getElementById("Gripper").style.pointerEvents = disabled;
-          document.getElementById("Elbow").style.pointerEvents = disabled;          
-          document.getElementById("Shoulder").style.pointerEvents = disabled;          
-          document.getElementById("Base").style.pointerEvents = disabled; 
-          document.getElementById("Record").style.pointerEvents = disabled;
-        }
-        if(button.id == "Record")
-        {
-          var disabled = "auto";
-          if (button.value == "ON")
-          {
-            disabled = "none";            
-          }
-          document.getElementById("Play").style.pointerEvents = disabled;
-        }        
-      }
-           
-      window.onload = initRobotArmInputWebSocket;
-      document.getElementById("mainTable").addEventListener("touchend", function(event){
-        event.preventDefault()
-      });      
-    </script>
-  </body>    
-</html>
-)HTMLHOMEPAGE";
-
-void handleRoot(AsyncWebServerRequest *request) 
-{
-  request->send_P(200, "text/html", htmlHomePage);
 }
 
-void handleNotFound(AsyncWebServerRequest *request) 
-{
-    request->send(404, "text/plain", "File Not Found");
-}
-
-void onRobotArmInputWebSocketEvent(AsyncWebSocket *server, 
-                      AsyncWebSocketClient *client, 
-                      AwsEventType type,
-                      void *arg, 
-                      uint8_t *data, 
-                      size_t len) 
-{                      
-  switch (type) 
-  {
-    case WS_EVT_CONNECT:
-      Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
-      sendCurrentRobotArmState();
-      break;
-    case WS_EVT_DISCONNECT:
-      Serial.printf("WebSocket client #%u disconnected\n", client->id());
-      break;
-    case WS_EVT_DATA:
-      AwsFrameInfo *info;
-      info = (AwsFrameInfo*)arg;
-      if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) 
-      {
-        std::string myData = "";
-        myData.assign((char *)data, len);
-        std::istringstream ss(myData);
-        std::string key, value;
-        std::getline(ss, key, ',');
-        std::getline(ss, value, ',');
-        Serial.printf("Key [%s] Value[%s]\n", key.c_str(), value.c_str()); 
-        int valueInt = atoi(value.c_str()); 
-        
-        if (key == "Record")
-        {
-          recordSteps = valueInt;
-          if (recordSteps)
-          {
-            recordedSteps.clear();
-            previousTimeInMilli = millis();
-          }
-        }  
-        else if (key == "Play")
-        {
-          playRecordedSteps = valueInt;
-        }
-        else if (key == "Base")
-        {
-          writeServoValues(0, valueInt);            
-        } 
-        else if (key == "Shoulder")
-        {
-          writeServoValues(1, valueInt);           
-        } 
-        else if (key == "Elbow")
-        {
-          writeServoValues(2, valueInt);           
-        }         
-        else if (key == "Gripper")
-        {
-          writeServoValues(3, valueInt);     
-        }   
-             
-      }
-      break;
-    case WS_EVT_PONG:
-    case WS_EVT_ERROR:
-      break;
-    default:
-      break;  
   }
-}
-
-void sendCurrentRobotArmState()
-{
-  for (int i = 0; i < servoPins.size(); i++)
-  {
-    wsRobotArmInput.textAll(servoPins[i].servoName + "," + servoPins[i].servo.read());
-  }
-  wsRobotArmInput.textAll(String("Record,") + (recordSteps ? "ON" : "OFF"));
-  wsRobotArmInput.textAll(String("Play,") + (playRecordedSteps ? "ON" : "OFF"));  
-}
-
-void writeServoValues(int servoIndex, int value)
-{
-  if (recordSteps)
-  {
-    RecordedStep recordedStep;       
-    if (recordedSteps.size() == 0) // We will first record initial position of all servos. 
-    {
-      for (int i = 0; i < servoPins.size(); i++)
-      {
-        recordedStep.servoIndex = i; 
-        recordedStep.value = servoPins[i].servo.read(); 
-        recordedStep.delayInStep = 0;
-        recordedSteps.push_back(recordedStep);         
-      }      
-    }
-    unsigned long currentTime = millis();
-    recordedStep.servoIndex = servoIndex; 
-    recordedStep.value = value; 
-    recordedStep.delayInStep = currentTime - previousTimeInMilli;
-    recordedSteps.push_back(recordedStep);  
-    previousTimeInMilli = currentTime;         
-  }
-  servoPins[servoIndex].servo.write(value);   
-}
-
-void playRecordedRobotArmSteps()
-{
-  if (recordedSteps.size() == 0)
-  {
-    return;
-  }
-  //This is to move servo to initial position slowly. First 4 steps are initial position    
-  for (int i = 0; i < 4 && playRecordedSteps; i++)
-  {
-    RecordedStep &recordedStep = recordedSteps[i];
-    int currentServoPosition = servoPins[recordedStep.servoIndex].servo.read();
-    while (currentServoPosition != recordedStep.value && playRecordedSteps)  
-    {
-      currentServoPosition = (currentServoPosition > recordedStep.value ? currentServoPosition - 1 : currentServoPosition + 1); 
-      servoPins[recordedStep.servoIndex].servo.write(currentServoPosition);
-      wsRobotArmInput.textAll(servoPins[recordedStep.servoIndex].servoName + "," + currentServoPosition);
-      delay(50);
-    }
-  }
-  delay(2000); // Delay before starting the actual steps.
-  
-  for (int i = 4; i < recordedSteps.size() && playRecordedSteps ; i++)
-  {
-    RecordedStep &recordedStep = recordedSteps[i];
-    delay(recordedStep.delayInStep);
-    servoPins[recordedStep.servoIndex].servo.write(recordedStep.value);
-    wsRobotArmInput.textAll(servoPins[recordedStep.servoIndex].servoName + "," + recordedStep.value);
-  }
-}
-
-void setUpPinModes()
-{
-  for (int i = 0; i < servoPins.size(); i++)
-  {
-    servoPins[i].servo.attach(servoPins[i].servoPin);
-    servoPins[i].servo.write(servoPins[i].initialPosition);    
-  }
-}
-
-
-void setup(void) 
-{
-  setUpPinModes();
-  Serial.begin(115200);
-
-  WiFi.softAP(ssid, password);
-  IPAddress IP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(IP);
-
-  server.on("/", HTTP_GET, handleRoot);
-  server.onNotFound(handleNotFound);
-      
-  wsRobotArmInput.onEvent(onRobotArmInputWebSocketEvent);
-  server.addHandler(&wsRobotArmInput);
-
-  server.begin();
-  Serial.println("HTTP server started");
-
-}
-
-void loop() 
-{
-  wsRobotArmInput.cleanupClients();
-  if (playRecordedSteps)
-  { 
-    playRecordedRobotArmSteps();
-  }
-}
